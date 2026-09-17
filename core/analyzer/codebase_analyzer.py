@@ -1,8 +1,8 @@
 from pathlib import Path
+import re
 
 
 class CodebaseAnalyzer:
-
     IGNORED_DIRECTORIES = {
         ".git",
         ".venv",
@@ -71,13 +71,10 @@ class CodebaseAnalyzer:
         return len(self.list_files())
 
     def get_structure(self):
-        structure = []
-
-        for path in self.list_files():
-            relative_path = path.relative_to(self.root_path)
-            structure.append(str(relative_path))
-
-        return structure
+        return [
+            str(path.relative_to(self.root_path))
+            for path in self.list_files()
+        ]
 
     def read_file(self, file_path):
         path = Path(file_path).resolve()
@@ -109,3 +106,96 @@ class CodebaseAnalyzer:
             encoding="utf-8",
             errors="replace"
         )
+
+    def find_relevant_files(self, task, max_files=8):
+        if not task or not task.strip():
+            return []
+
+        task_words = self._extract_keywords(task)
+
+        scored_files = []
+
+        for path in self.list_files():
+            if path.suffix.lower() not in self.TEXT_EXTENSIONS:
+                continue
+
+            relative_path = str(
+                path.relative_to(self.root_path)
+            ).lower()
+
+            try:
+                content = self.read_file(path)
+            except ValueError:
+                continue
+
+            searchable_text = (
+                relative_path
+                + " "
+                + content.lower()
+            )
+
+            score = 0
+
+            for word in task_words:
+                if word in relative_path:
+                    score += 5
+
+                score += searchable_text.count(word)
+
+            if path.name.lower() in {
+                "readme.md",
+                "pyproject.toml",
+                "requirements.txt",
+            }:
+                score += 1
+
+            if score > 0:
+                scored_files.append(
+                    (score, path)
+                )
+
+        scored_files.sort(
+            key=lambda item: (-item[0], str(item[1]))
+        )
+
+        return [
+            path
+            for _, path in scored_files[:max_files]
+        ]
+
+    def _extract_keywords(self, text):
+        words = re.findall(
+            r"[a-zA-Z_][a-zA-Z0-9_]*",
+            text.lower()
+        )
+
+        stop_words = {
+            "the",
+            "this",
+            "that",
+            "with",
+            "from",
+            "into",
+            "for",
+            "and",
+            "or",
+            "to",
+            "of",
+            "a",
+            "an",
+            "is",
+            "are",
+            "be",
+            "it",
+            "in",
+            "on",
+            "my",
+            "project",
+        }
+
+        return {
+            word
+            for word in words
+            if len(word) >= 3
+            and word not in stop_words
+        }

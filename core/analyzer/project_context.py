@@ -2,24 +2,37 @@ from core.analyzer.codebase_analyzer import CodebaseAnalyzer
 
 
 class ProjectContextBuilder:
+    MAX_CONTEXT_CHARS = 24000
+    MAX_RELEVANT_FILES = 8
 
     def __init__(self, root_path):
         self.analyzer = CodebaseAnalyzer(root_path)
 
-    def build(self):
+    def build(self, task=None):
         structure = self.analyzer.get_structure()
 
-        sections = []
+        sections = [
+            "PROJECT STRUCTURE:",
+            *structure,
+            "",
+            "RELEVANT SOURCE CODE:",
+        ]
 
-        sections.append("PROJECT STRUCTURE:")
-        sections.extend(structure)
+        if task:
+            files = self.analyzer.find_relevant_files(
+                task,
+                max_files=self.MAX_RELEVANT_FILES,
+            )
+        else:
+            files = self.analyzer.list_files()
 
-        sections.append("")
-        sections.append("SOURCE CODE:")
+        total_chars = len("\n".join(sections))
 
-        for file_path in self.analyzer.list_files():
-
-            if file_path.suffix.lower() not in self.analyzer.TEXT_EXTENSIONS:
+        for file_path in files:
+            if (
+                file_path.suffix.lower()
+                not in self.analyzer.TEXT_EXTENSIONS
+            ):
                 continue
 
             try:
@@ -31,8 +44,15 @@ class ProjectContextBuilder:
                 self.analyzer.root_path
             )
 
-            sections.append("")
-            sections.append(f"--- FILE: {relative_path} ---")
-            sections.append(content)
+            file_section = (
+                f"\n--- FILE: {relative_path} ---\n"
+                f"{content}"
+            )
+
+            if total_chars + len(file_section) > self.MAX_CONTEXT_CHARS:
+                continue
+
+            sections.append(file_section)
+            total_chars += len(file_section)
 
         return "\n".join(sections)

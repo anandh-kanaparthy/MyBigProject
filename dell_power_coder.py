@@ -1,21 +1,44 @@
-import os
-from google import genai
+from core.ai_router import AIRouter
+from core.planner.planner import Planner
+from core.tool_registry import ToolRegistry
+from core.executor.agent_executor import AgentExecutor
 
-class DynamicAIEngine:
-    def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY")
-        if not self.api_key:
-            raise ValueError("GEMINI_API_KEY is not set")
-        self.client = genai.Client(api_key=self.api_key)
 
-    def ask(self, prompt):
-        response = self.client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt
+def main():
+    root_path = "."
+
+    router = AIRouter()
+    tools = ToolRegistry(root_path)
+    planner = Planner(router, root_path)
+    executor = AgentExecutor(planner, tools, router)
+
+    task = input("\nWhat do you want me to do? ").strip()
+
+    if not task:
+        print("No task provided.")
+        return
+
+    result = executor.execute(task)
+
+    print("\n=== PLAN ===")
+
+    for step in result["plan"]:
+        print(
+            f'{step["step"]}. '
+            f'{step["description"]}'
         )
-        return response.text
+
+    print("\n=== RESULTS ===")
+
+    for item in result["results"]:
+        print(
+            f'\nStep {item["step"]}: '
+            f'{item["action"]} '
+            f'[{item["status"]}]'
+        )
+
+        print(item["result"])
+
 
 if __name__ == "__main__":
-    ai = DynamicAIEngine()
-    answer = ai.ask("Hello! Introduce yourself in one short sentence.")
-    print("\nAI:", answer)
+    main()

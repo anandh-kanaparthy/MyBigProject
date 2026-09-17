@@ -9,7 +9,7 @@ class CodingAgent:
         self.context_builder = ProjectContextBuilder(root_path)
 
     def build_prompt(self, task):
-        project_context = self.context_builder.build()
+        project_context = self.context_builder.build(task)
 
         return f"""
 You are an advanced software engineering AI agent.

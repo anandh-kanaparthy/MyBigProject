@@ -1,25 +1,24 @@
-from providers.openai_provider import OpenAIProvider
-from providers.gemini_provider import GeminiProvider
-from providers.groq_provider import GroqProvider
+from config.loader import get_enabled_providers
 
 
 class ProviderFactory:
-
-    PROVIDER_CLASSES = {
-        "openai": OpenAIProvider,
-        "gemini": GeminiProvider,
-        "groq": GroqProvider,
-    }
 
     @classmethod
     def create(cls, provider_name):
         provider_name = provider_name.lower()
 
-        if provider_name not in cls.PROVIDER_CLASSES:
-            raise ValueError(
-                f"Unsupported provider: {provider_name}"
-            )
+        if provider_name == "openai":
+            from providers.openai_provider import OpenAIProvider
+            return OpenAIProvider()
 
-        provider_class = cls.PROVIDER_CLASSES[provider_name]
+        if provider_name == "gemini":
+            from providers.gemini_provider import GeminiProvider
+            return GeminiProvider()
 
-        return provider_class()
+        if provider_name == "groq":
+            from providers.groq_provider import GroqProvider
+            return GroqProvider()
+
+        raise ValueError(
+            f"Unsupported provider: {provider_name}"
+        )
