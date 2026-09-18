@@ -1,5 +1,7 @@
 from core.implementer.code_implementer import CodeImplementer
 from core.implementer.change_validator import ChangeValidator
+from core.implementer.change_writer import ChangeWriter
+from core.implementer.proposal_parser import ProposalParser
 
 
 class AgentExecutor:
@@ -13,8 +15,34 @@ class AgentExecutor:
             planner.context_builder,
         )
 
+        self.proposal_parser = ProposalParser()
+
         self.change_validator = ChangeValidator(
             tool_registry.filesystem.root_path
+        )
+
+        self.change_writer = ChangeWriter(
+            tool_registry.filesystem.root_path
+        )
+
+    def apply_approved_change(self, proposal):
+        proposal_text = (
+            f"FILE: {proposal['file']}\n\n"
+            f"CHANGE:\n{proposal['change']}\n\n"
+            f"CODE:\n{proposal['code']}"
+        )
+
+        parsed_proposal = self.proposal_parser.parse(
+            proposal_text
+        )
+
+        self.change_validator.validate(
+            proposal_text
+        )
+
+        return self.change_writer.write(
+            parsed_proposal["file"],
+            parsed_proposal["code"],
         )
 
     def execute(self, task):
@@ -77,14 +105,18 @@ class AgentExecutor:
                         f"CODE:\n{proposal['code']}"
                     )
 
+                    parsed_proposal = self.proposal_parser.parse(
+                        proposal_text
+                    )
+
                     self.change_validator.validate(
                         proposal_text
                     )
 
                     implementation_result = {
-                        "file": proposal["file"],
-                        "change": proposal["change"],
-                        "code": proposal["code"],
+                        "file": parsed_proposal["file"],
+                        "change": parsed_proposal["change"],
+                        "code": parsed_proposal["code"],
                     }
 
                     execution_context.append(

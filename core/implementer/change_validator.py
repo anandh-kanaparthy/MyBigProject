@@ -23,30 +23,71 @@ class ChangeValidator:
         self.root_path = Path(root_path).resolve()
 
     def validate(self, proposal):
-        if not proposal or not proposal.strip():
-            raise ValueError("Empty implementation proposal")
+        if not proposal:
+            raise ValueError(
+                "Empty implementation proposal"
+            )
 
-        target_file, change, code = self._parse_proposal(proposal)
+        if isinstance(proposal, dict):
+            target_file = proposal.get("file")
+            change = proposal.get("change")
+            code = proposal.get("code")
 
-        target_path = (self.root_path / target_file).resolve()
+        elif isinstance(proposal, str):
+            target_file, change, code = self._parse_proposal(
+                proposal
+            )
+
+        else:
+            raise ValueError(
+                "Unsupported implementation proposal type"
+            )
+
+        if not target_file or not target_file.strip():
+            raise ValueError(
+                "Proposal does not specify a target file"
+            )
+
+        if not change or not change.strip():
+            raise ValueError(
+                "Proposal does not specify a change"
+            )
+
+        if not code or not code.strip():
+            raise ValueError(
+                "Proposal does not contain code"
+            )
+
+        target_file = target_file.strip()
+        code = code.strip()
+
+        target_path = (
+            self.root_path / target_file
+        ).resolve()
 
         try:
-            target_path.relative_to(self.root_path)
+            target_path.relative_to(
+                self.root_path
+            )
         except ValueError:
             raise ValueError(
                 "Target file is outside the project directory"
             )
 
         if target_path.name in self.PROTECTED_FILES:
-            raise ValueError("Protected configuration file")
-
-        if not code.strip():
-            raise ValueError("Generated code cannot be empty")
+            raise ValueError(
+                "Protected configuration file"
+            )
 
         if len(code.encode("utf-8")) > self.MAX_CODE_SIZE:
-            raise ValueError("Generated code is too large")
+            raise ValueError(
+                "Generated code is too large"
+            )
 
-        self._validate_code_quality(target_file, code)
+        self._validate_code_quality(
+            target_file,
+            code,
+        )
 
         return True
 
@@ -54,46 +95,70 @@ class ChangeValidator:
         lines = proposal.splitlines()
 
         target_file = None
-        change = None
+        change_lines = []
         code_lines = []
 
-        in_code = False
+        section = None
 
         for line in lines:
             stripped = line.strip()
 
             if stripped.startswith("FILE:"):
                 target_file = stripped[5:].strip()
+                section = None
+                continue
+
+            if stripped == "CHANGE:":
+                section = "change"
                 continue
 
             if stripped.startswith("CHANGE:"):
-                change = stripped[7:].strip()
+                change_lines.append(
+                    stripped[7:].strip()
+                )
+                section = "change"
                 continue
 
-            if stripped.startswith("CODE:"):
-                in_code = True
-                remainder = line.split("CODE:", 1)[1]
-                if remainder.strip():
-                    code_lines.append(remainder.lstrip())
+            if stripped == "CODE:":
+                section = "code"
                 continue
 
-            if in_code:
+            if section == "change":
+                change_lines.append(line)
+
+            elif section == "code":
                 code_lines.append(line)
 
         if not target_file:
-            raise ValueError("Proposal does not specify a target file")
+            raise ValueError(
+                "Proposal does not specify a target file"
+            )
+
+        change = "\n".join(
+            change_lines
+        ).strip()
 
         if not change:
-            raise ValueError("Proposal does not specify a change")
+            raise ValueError(
+                "Proposal does not specify a change"
+            )
 
         if not code_lines:
-            raise ValueError("Proposal does not contain code")
+            raise ValueError(
+                "Proposal does not contain code"
+            )
 
-        code = "\n".join(code_lines).strip()
+        code = "\n".join(
+            code_lines
+        ).strip()
 
         return target_file, change, code
 
-    def _validate_code_quality(self, target_file, code):
+    def _validate_code_quality(
+        self,
+        target_file,
+        code,
+    ):
         code_lower = code.lower()
 
         for marker in self.FORBIDDEN_MARKERS:
@@ -102,7 +167,9 @@ class ChangeValidator:
                     f"Invalid placeholder detected: {marker}"
                 )
 
-        suffix = Path(target_file).suffix.lower()
+        suffix = Path(
+            target_file
+        ).suffix.lower()
 
         if suffix == ".py":
             self._validate_python(code)
@@ -112,5 +179,6 @@ class ChangeValidator:
             ast.parse(code)
         except SyntaxError as error:
             raise ValueError(
-                f"Generated Python code has invalid syntax: {error}"
+                "Generated Python code has invalid syntax: "
+                f"{error}"
             )
